@@ -13,7 +13,7 @@
     "db:generate": "pnpm --filter @financeiro/db db:generate",
     "db:migrate": "pnpm --filter @financeiro/db db:migrate",
     "db:validate": "pnpm --filter @financeiro/db db:validate",
-    "test": "node --experimental-strip-types --test packages/domain/test/*.test.ts",
+    "test": "node --experimental-strip-types --test packages/domain/test/*.test.ts packages/contracts/test/*.test.ts packages/integrations/test/*.test.ts",
     "check": "pnpm test && pnpm typecheck"
   },
   "devDependencies": {

@@ -122,7 +122,7 @@ test('linha de valor desconhecida em seção de resumo não é somada', () => {
 });
 
 test('campo ausente vira null + MISSING_FIELD e pula reconciliação, sem estimar', () => {
-  const r = parseClosingText(FIXTURE.replace('Total do caixa apurado (C+D-E) R$ 7.500,67\n', ''));
+  const r = parseClosingText(FIXTURE.replace(/Total do caixa apurado \(C\+D-E\) R\$ 7\.500,67\r?\n/u, ''));
   assert.equal(r.detail.calculatedReportTotalPrinted, null);
   assert.ok(r.issues.some((i) => i.code === 'MISSING_FIELD' && i.field === 'detail.calculatedReportTotalPrinted'));
   assert.ok(codes(r).includes('RECONCILIATION_SKIPPED'));
@@ -156,10 +156,20 @@ test('reprocessamento determinístico e tolerante a CRLF/NBSP', () => {
   const b = parseClosingText(FIXTURE);
   assert.equal(JSON.stringify(a), JSON.stringify(b));
   const c = parseClosingText(FIXTURE.replaceAll('\n', '\r\n').replaceAll('R$ ', 'R$ '));
+  const withoutEvidence = (value: ReturnType<typeof parseClosingText>) => ({
+    ...value,
+    rawLines: [],
+    detail: {
+      ...value.detail,
+      otherEntries: value.detail.otherEntries.map(({ raw, line, ...entry }) => entry),
+      smartTefLines: value.detail.smartTefLines.map(({ raw, line, ...entry }) => entry),
+    },
+    withdrawals: value.withdrawals.map(({ raw, line, ...entry }) => entry),
+  });
   assert.deepEqual(
-    { ...c, rawLines: [] },
-    { ...a, rawLines: [] },
-    'só os textos brutos (rawLines/raw) podem diferir',
+    withoutEvidence(c),
+    withoutEvidence(a),
+    'somente a evidência de origem pode diferir',
   );
 });
 
