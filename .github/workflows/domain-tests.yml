@@ -1,0 +1,14 @@
+name: Domain regression tests
+on:
+  push:
+  pull_request:
+jobs:
+  domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Financial arithmetic tests (no external dependencies)
+        run: node --experimental-strip-types --test packages/domain/test/*.test.ts

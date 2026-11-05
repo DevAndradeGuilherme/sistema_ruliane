@@ -1,0 +1,13 @@
+{
+  "name": "@financeiro/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "tsx watch src/index.ts", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "dependencies": {
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.0.0",
+    "@financeiro/domain": "workspace:*",
+    "@financeiro/integrations": "workspace:*"
+  }
+}

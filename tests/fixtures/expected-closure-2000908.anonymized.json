@@ -1,0 +1,19 @@
+{
+  "fixture": "Cash closure values extracted from provided PDF; operator and company names omitted",
+  "closureNumber": "2000908",
+  "terminal": "2",
+  "closedAtLocal": "2026-10-30T15:11:00",
+  "cashSales": "1349.85",
+  "cashWithdrawals": "214.50",
+  "cashNet": "1135.35",
+  "otherEntries": "6365.32",
+  "detailTotal": "7500.67",
+  "reportedCloseTotal": "7386.58",
+  "reportedVariance": "-114.09",
+  "debitSummary": "2003.71",
+  "debitDetail": "2117.71",
+  "dueSummary": "210.50",
+  "dueDetail": "210.59",
+  "smartTef": "624.73",
+  "sangrias": ["8.00", "4.50", "2.00", "200.00"]
+}

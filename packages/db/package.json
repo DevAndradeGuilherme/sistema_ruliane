@@ -1,0 +1,22 @@
+{
+  "name": "@financeiro/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev --name init",
+    "typecheck": "echo 'DB: schema validado via pnpm db:validate; client gerado no TASK-001'"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.10.0",
+    "@prisma/adapter-pg": "^7.10.0",
+    "pg": "^8.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.10.0",
+    "dotenv": "^17.0.0",
+    "@types/pg": "^8.0.0"
+  }
+}

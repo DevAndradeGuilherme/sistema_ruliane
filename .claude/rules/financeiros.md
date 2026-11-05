@@ -1,0 +1,11 @@
+---
+paths:
+  - "packages/domain/**/*.ts"
+  - "packages/contracts/**/*.ts"
+  - "apps/web/app/api/**/*.ts"
+  - "apps/worker/**/*.ts"
+---
+- Dinheiro nunca é `number`/float na lógica financeira. No contrato externo, decimal string; no domínio, `bigint` centavos.
+- Em conflito documento vs soma, manter ambos e sinalizar revisão.
+- Sangria só se torna despesa após classificação/vinculação, evitando dupla contabilização.
+- Se houver IA, saída sem dados comprobatórios deve ser explicitamente limitada.

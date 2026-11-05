@@ -1,0 +1,24 @@
+{
+  "name": "financeiro-multiagentes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.20.0",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "pnpm --filter @financeiro/web dev",
+    "dev:worker": "pnpm --filter @financeiro/worker dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "db:generate": "pnpm --filter @financeiro/db db:generate",
+    "db:migrate": "pnpm --filter @financeiro/db db:migrate",
+    "db:validate": "pnpm --filter @financeiro/db db:validate",
+    "test": "node --experimental-strip-types --test packages/domain/test/*.test.ts",
+    "check": "pnpm test && pnpm typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "tsx": "^4.20.0",
+    "@types/node": "^22.0.0"
+  }
+}
