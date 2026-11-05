@@ -1,0 +1,4 @@
+import type { Metadata } from 'next';
+import { EmptyState, PageHeading, Panel } from '../ui';
+export const metadata: Metadata = { title: 'Sangrias' };
+export default function Sangrias() { return <><PageHeading eyebrow="Movimentação física" title="Sangrias" description="Identifique a origem e acompanhe a classificação de cada retirada do caixa." /><div className="notice">Sangria sem classificação não é apresentada como despesa paga.</div><Panel title="Movimentações de caixa"><div className="table-wrap"><table><thead><tr><th>Data</th><th>Fechamento</th><th>Descrição original</th><th>Valor</th><th>Classificação</th><th>Vínculo com despesa</th></tr></thead><tbody><tr><td colSpan={6}><EmptyState title="Nenhuma sangria disponível" description="As sangrias importadas aparecerão com descrição original e situação de classificação." /></td></tr></tbody></table></div></Panel></>; }

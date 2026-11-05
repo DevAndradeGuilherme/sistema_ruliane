@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="state-page" role="status" aria-live="polite"><span className="spinner" aria-hidden="true" /><h1>Carregando informações</h1><p>Aguarde enquanto a página é preparada.</p></div>; }
