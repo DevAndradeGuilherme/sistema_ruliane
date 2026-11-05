@@ -14,3 +14,5 @@ export interface ReadOnlyFinanceTools {
   listPayables(input: { organizationId: string; from: string; to: string; limit: number }): Promise<unknown>;
   summarizeClosures(input: { organizationId: string; from: string; to: string }): Promise<unknown>;
 }
+
+export * from "./evolution/index.ts";
