@@ -1,0 +1,4 @@
+import type { Metadata } from 'next';
+import { EmptyState, PageHeading, Panel, StatCard } from '../ui';
+export const metadata: Metadata = { title: 'Pendências de revisão' };
+export default function Revisao() { return <><PageHeading eyebrow="Conferência" title="Pendências de revisão" description="Acompanhe divergências de fechamento, documentos incompletos e sangrias sem classificação." /><div className="stats stats-three"><StatCard label="Divergências de caixa" hint="Valores impressos preservados" /><StatCard label="Sangrias sem classificação" hint="Aguardam análise" /><StatCard label="Documentos pendentes" hint="Aguardam conferência" /></div><Panel title="Itens para revisão"><EmptyState title="Nenhum item disponível" description="Pendências serão exibidas quando os fechamentos e as movimentações estiverem conectados." /></Panel></>; }
