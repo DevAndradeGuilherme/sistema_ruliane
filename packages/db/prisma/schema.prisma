@@ -141,6 +141,7 @@ model User {
   whatsappMessages WhatsAppMessage[]
   notifications    NotificationDelivery[]
   auditActions     AuditLog[]             @relation("AuditActor")
+  @@unique([id, organizationId])
   @@unique([organizationId, whatsappJid])
   @@index([organizationId, role])
 }
@@ -155,6 +156,7 @@ model Supplier {
   updatedAt      DateTime        @updatedAt
   payables       Payable[]
   expenses       Expense[]
+  @@unique([id, organizationId])
   @@index([organizationId, name])
 }
 
@@ -166,6 +168,7 @@ model ExpenseCategory {
   active         Boolean         @default(true)
   payables       Payable[]
   expenses       Expense[]
+  @@unique([id, organizationId])
   @@unique([organizationId, name])
 }
 
@@ -177,6 +180,7 @@ model InstallmentGroup {
   totalCount   Int
   payables     Payable[]
   createdAt    DateTime   @default(now())
+  @@unique([id, organizationId])
 }
 
 model Payable {
@@ -184,11 +188,11 @@ model Payable {
   organizationId     String           @db.Uuid
   organization       Organization     @relation(fields: [organizationId], references: [id])
   supplierId         String?          @db.Uuid
-  supplier           Supplier?        @relation(fields: [supplierId], references: [id])
+  supplier           Supplier?        @relation(fields: [supplierId, organizationId], references: [id, organizationId])
   categoryId         String?          @db.Uuid
-  category           ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  category           ExpenseCategory? @relation(fields: [categoryId, organizationId], references: [id, organizationId])
   installmentGroupId String?          @db.Uuid
-  installmentGroup   InstallmentGroup? @relation(fields: [installmentGroupId], references: [id])
+  installmentGroup   InstallmentGroup? @relation(fields: [installmentGroupId, organizationId], references: [id, organizationId])
   installmentNumber  Int?
   description        String
   amountExpected     Decimal          @db.Decimal(14, 2)
@@ -198,31 +202,38 @@ model Payable {
   notes              String?
   sourceChannel      SourceChannel    @default(WEB)
   createdById        String?          @db.Uuid
-  createdBy          User?            @relation("PayableCreatedBy", fields: [createdById], references: [id])
+  createdBy          User?            @relation("PayableCreatedBy", fields: [createdById, organizationId], references: [id, organizationId], onDelete: Restrict)
   canceledAt         DateTime?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
   payments           PayablePayment[]
+  @@unique([id, organizationId])
   @@index([organizationId, dueDate, status])
   @@index([organizationId, supplierId])
 }
 
 model PayablePayment {
   id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
   payableId       String         @db.Uuid
-  payable         Payable        @relation(fields: [payableId], references: [id])
+  payable         Payable        @relation(fields: [payableId, organizationId], references: [id, organizationId])
   amount          Decimal        @db.Decimal(14, 2)
   paidAt          DateTime
   method          PaymentMethod
   externalRef     String?
+  idempotencyKey  String?
   recordedById    String?        @db.Uuid
-  recordedBy      User?          @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  recordedBy      User?          @relation("PaymentRecordedBy", fields: [recordedById, organizationId], references: [id, organizationId], onDelete: Restrict)
   cashMovementId  String?        @unique @db.Uuid
-  cashMovement    CashMovement?  @relation("MovementPayment", fields: [cashMovementId], references: [id])
+  cashMovement    CashMovement?  @relation("MovementPayment", fields: [cashMovementId, organizationId], references: [id, organizationId])
   voidedAt        DateTime?
   createdAt       DateTime       @default(now())
   expense         Expense?       @relation("PaymentExpense")
+  @@unique([cashMovementId, organizationId])
+  @@unique([id, organizationId])
+  @@unique([organizationId, idempotencyKey])
   @@index([payableId, paidAt])
+  @@index([organizationId, paidAt])
 }
 
 model Document {
@@ -239,6 +250,7 @@ model Document {
   closure        CashClosure?
   importJobs     ImportJob[]
   @@unique([organizationId, sha256])
+  @@unique([id, organizationId])
 }
 
 model ImportJob {
@@ -261,9 +273,10 @@ model CashClosure {
   organizationId             String                  @db.Uuid
   organization               Organization            @relation(fields: [organizationId], references: [id])
   documentId                 String                  @unique @db.Uuid
-  document                   Document                @relation(fields: [documentId], references: [id])
+  document                   Document                @relation(fields: [documentId, organizationId], references: [id, organizationId])
   closureNumber              String
   terminal                   String
+  businessDate               DateTime                @db.Date
   operatorCode               String?
   operatorName               String?
   openedAt                   DateTime?
@@ -281,7 +294,9 @@ model CashClosure {
   lines                      CashClosureLine[]
   movements                  CashMovement[]
   issues                     ReviewIssue[]
-  @@unique([organizationId, closureNumber, terminal, closedAt])
+  @@unique([documentId, organizationId])
+  @@unique([organizationId, closureNumber, terminal, businessDate])
+  @@unique([id, organizationId])
   @@index([organizationId, closedAt])
 }
 
@@ -299,9 +314,11 @@ model CashClosureLine {
 
 model CashMovement {
   id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid
   closureId       String             @db.Uuid
-  closure         CashClosure        @relation(fields: [closureId], references: [id])
+  closure         CashClosure        @relation(fields: [closureId, organizationId], references: [id, organizationId])
   kind            CashMovementKind
+  sourceOrdinal   Int
   descriptionRaw  String
   amount          Decimal            @db.Decimal(14, 2)
   classification  CashClassification @default(NAO_CLASSIFICADA)
@@ -309,6 +326,8 @@ model CashMovement {
   createdAt       DateTime           @default(now())
   payment         PayablePayment?    @relation("MovementPayment")
   expense         Expense?           @relation("MovementExpense")
+  @@unique([id, organizationId])
+  @@unique([closureId, kind, sourceOrdinal])
   @@index([closureId, classification])
 }
 
@@ -317,19 +336,21 @@ model Expense {
   organizationId String           @db.Uuid
   organization   Organization     @relation(fields: [organizationId], references: [id])
   supplierId     String?          @db.Uuid
-  supplier       Supplier?        @relation(fields: [supplierId], references: [id])
+  supplier       Supplier?        @relation(fields: [supplierId, organizationId], references: [id, organizationId])
   categoryId     String?          @db.Uuid
-  category       ExpenseCategory? @relation(fields: [categoryId], references: [id])
+  category       ExpenseCategory? @relation(fields: [categoryId, organizationId], references: [id, organizationId])
   description    String
   amount         Decimal          @db.Decimal(14, 2)
   occurredAt     DateTime
   origin         ExpenseOrigin
   paymentId      String?          @unique @db.Uuid
-  payment        PayablePayment?  @relation("PaymentExpense", fields: [paymentId], references: [id])
+  payment        PayablePayment?  @relation("PaymentExpense", fields: [paymentId, organizationId], references: [id, organizationId])
   cashMovementId String?          @unique @db.Uuid
-  cashMovement   CashMovement?    @relation("MovementExpense", fields: [cashMovementId], references: [id])
+  cashMovement   CashMovement?    @relation("MovementExpense", fields: [cashMovementId, organizationId], references: [id, organizationId])
   voidedAt       DateTime?
   createdAt      DateTime         @default(now())
+  @@unique([paymentId, organizationId])
+  @@unique([cashMovementId, organizationId])
   @@index([organizationId, occurredAt])
 }
 
@@ -340,7 +361,7 @@ model ReviewIssue {
   recordType String?
   recordId String?
   closureId  String?        @db.Uuid
-  closure    CashClosure?   @relation(fields: [closureId], references: [id])
+  closure    CashClosure?   @relation(fields: [closureId, organizationId], references: [id, organizationId], onDelete: Restrict)
   code       String
   severity   ReviewSeverity
   expected   String?
@@ -356,7 +377,7 @@ model WhatsAppMessage {
   organizationId    String            @db.Uuid
   organization      Organization      @relation(fields: [organizationId], references: [id])
   userId            String?           @db.Uuid
-  user              User?             @relation(fields: [userId], references: [id])
+  user              User?             @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Restrict)
   instanceName      String
   providerMessageId String
   direction         WhatsAppDirection
@@ -373,7 +394,7 @@ model NotificationDelivery {
   organizationId  String             @db.Uuid
   organization    Organization       @relation(fields: [organizationId], references: [id])
   recipientUserId String             @db.Uuid
-  recipient       User               @relation(fields: [recipientUserId], references: [id])
+  recipient       User               @relation(fields: [recipientUserId, organizationId], references: [id, organizationId])
   notificationKey String             @unique
   dueDate         DateTime           @db.Date
   status          NotificationStatus @default(PENDENTE)
@@ -388,7 +409,7 @@ model AuditLog {
   organizationId String       @db.Uuid
   organization   Organization @relation(fields: [organizationId], references: [id])
   actorUserId    String?      @db.Uuid
-  actor          User?        @relation("AuditActor", fields: [actorUserId], references: [id])
+  actor          User?        @relation("AuditActor", fields: [actorUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
   action         String
   entityName     String
   entityId       String
