@@ -7,3 +7,5 @@ export const prisma = globalDb.financeiroPrisma ?? new PrismaClient({
 });
 if (process.env.NODE_ENV !== 'production') globalDb.financeiroPrisma = prisma;
 export { Prisma } from '../generated/prisma/client.ts';
+export { PostgresInboundClaims, InactiveWhatsAppInstance, LostInboundLease } from './inbound-dedup.ts';
+export type { ClaimHandle, ClaimKey, FinancialEntity } from './inbound-dedup.ts';
