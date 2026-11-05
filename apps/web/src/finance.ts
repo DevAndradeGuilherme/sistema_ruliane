@@ -2,6 +2,7 @@ import { prisma, Prisma } from '@financeiro/db';
 import { payableCreateSchema, payablePaymentCreateSchema } from '@financeiro/contracts';
 import { decimalStringToCents, centsToDecimalString, pendingPayableBalance } from '@financeiro/domain';
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { ApiError, type Actor } from './errors.ts';
 
 const uuid = z.uuid();
@@ -26,20 +27,50 @@ const payableJson = (p: { id: string; description: string; amountExpected: { toF
   supplierId: p.supplierId, plannedMethod: p.plannedMethod, notes: p.notes,
 });
 
-export async function createPayable(actor: Actor, raw: unknown) {
+async function createPayableOnce(actor: Actor, raw: unknown, id: string) {
   requireFinanceiro(actor);
   const input = payableCreateSchema.parse(raw);
   if (input.supplierId && !await prisma.supplier.findFirst({ where: { id: input.supplierId, organizationId: actor.organizationId } })) throw new ApiError(404, 'Fornecedor não encontrado');
   return prisma.$transaction(async tx => {
     const group = input.installmentTotal ? await tx.installmentGroup.create({ data: { organizationId: actor.organizationId, description: input.description, totalCount: input.installmentTotal } }) : null;
-    const p = await tx.payable.create({ data: { organizationId: actor.organizationId, createdById: actor.id, description: input.description,
+    const p = await tx.payable.create({ data: { id, organizationId: actor.organizationId, createdById: actor.id, description: input.description,
       supplierId: input.supplierId, amountExpected: input.amountExpected, dueDate: date(input.dueDate), plannedMethod: input.plannedMethod,
       installmentNumber: input.installmentNumber, notes: input.notes,
       installmentGroupId: group?.id,
     } });
-    await audit(tx, actor, 'CREATE', 'Payable', p.id, {}, payableJson(p));
-    return payableJson(p);
+    await audit(tx, actor, 'CREATE', 'Payable', p.id, {}, { ...payableJson(p), inputFingerprint: createHash('sha256').update(JSON.stringify(input)).digest('hex') });
+    return { ...payableJson(p), repeated: false };
   });
+}
+
+export async function createPayable(actor: Actor, raw: unknown, idempotencyKey: string) {
+  requireFinanceiro(actor);
+  const id = uuid.parse(idempotencyKey);
+  const input = payableCreateSchema.parse(raw);
+  const inputFingerprint = createHash('sha256').update(JSON.stringify(input)).digest('hex');
+  async function repeated() {
+    const found = await prisma.payable.findUnique({ where: { id } });
+    if (!found) return null;
+    if (found.organizationId !== actor.organizationId || found.createdById !== actor.id) throw new ApiError(409, 'Chave de idempotência usada com dados diferentes');
+    const creation = await prisma.auditLog.findFirst({ where: { organizationId: actor.organizationId, entityName: 'Payable', entityId: id, action: 'CREATE' }, select: { after: true } });
+    const recorded = creation?.after as { inputFingerprint?: unknown } | null | undefined;
+    if (recorded?.inputFingerprint !== inputFingerprint) throw new ApiError(409, 'Chave de idempotência usada com dados diferentes');
+    return { ...payableJson(found), repeated: true };
+  }
+  const prior = await repeated();
+  if (prior) return prior;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try { return await createPayableOnce(actor, input, id); }
+    catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2002' || error.code === 'P2034')) {
+        const found = await repeated();
+        if (found) return found;
+        if (attempt < 2) continue;
+      }
+      throw error;
+    }
+  }
+  throw new ApiError(409, 'Conflito concorrente');
 }
 
 export async function editPayable(actor: Actor, id: string, raw: unknown) {

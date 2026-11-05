@@ -21,10 +21,18 @@ test('backend financeiro: autenticação, escopo, saldo, concorrência, sangria 
   try {
     assert.equal((await verifyCredentials({ email, password: 'senha-teste' }))?.id, user.id);
     assert.equal(await verifyCredentials({ email, password: 'errada' }), null);
-    await assert.rejects(createPayable(ownerActor, { description: 'Vedada', amountExpected: '1.00', dueDate: '2026-11-05' }), /somente leitura/);
-    const p = await createPayable(actor, { description: 'Conta de teste', amountExpected: '100.00', dueDate: '2026-11-05' });
+    await assert.rejects(createPayable(ownerActor, { description: 'Vedada', amountExpected: '1.00', dueDate: '2026-11-05' }, randomUUID()), /somente leitura/);
+    const createInput = { description: 'Conta de teste', amountExpected: '100.00', dueDate: '2026-11-05' };
+    const createKey = randomUUID();
+    const created = await Promise.all(Array.from({ length: 10 }, () => createPayable(actor, createInput, createKey)));
+    assert.equal(new Set(created.map(x => x.id)).size, 1);
+    assert.equal(created.filter(x => !x.repeated).length, 1);
+    const p = created[0]!;
+    await assert.rejects(createPayable(actor, { ...createInput, amountExpected: '101.00' }, createKey), /Chave de idempotência/);
+    assert.equal(await prisma.auditLog.count({ where: { organizationId: org.id, entityId: p.id, action: 'CREATE' } }), 1);
     await assert.rejects(editPayable({ ...actor, organizationId: other.id }, p.id, { description: 'Cruzada' }), /não encontrada/);
     await editPayable(actor, p.id, { amountExpected: '90.00' });
+    assert.equal((await createPayable(actor, createInput, createKey)).repeated, true);
     const payment = { payableId: p.id, amount: '60.00', paidAt: '2026-11-05T12:00:00-03:00', method: 'PIX' as const, idempotencyKey: randomUUID() };
     const first = await recordPayment(actor, payment);
     assert.equal(first.repeated, false);

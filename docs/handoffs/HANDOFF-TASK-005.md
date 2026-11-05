@@ -2,6 +2,16 @@
 
 Branch: `feat/task-005-backend`. Sem merge, deploy da aplicação ou reset. A única migration executada foi `20261105000200_whatsapp_inbound_dedup` no PostgreSQL DEV, conforme atualização abaixo.
 
+## Finalização do núcleo financeiro — etapa atual
+
+- Criação de contas: `POST /api/payables` exige `Idempotency-Key` UUID. A PK da conta persiste a chave; dez requisições concorrentes no PostgreSQL DEV criaram uma conta e um evento `CREATE`. O fingerprint do pedido original fica na auditoria, permitindo reenvio após edição da conta. Chave reutilizada com outro conteúdo retorna `409`; resposta repetida informa o estado atual da conta.
+- Fechamentos: `persistClosure` usa os contratos normalizados existentes, verifica timestamps em `America/Sao_Paulo`, preserva o payload original (inclusive `null` e total apurado impresso) em `ImportJob`, guarda valor impresso e cálculo em campos separados e sangrias com `sourceOrdinal` estável a partir de 1. Reimportação por hash retorna o fechamento existente; chave lógica com outro arquivo gera `409`. SmartTEF fica em seção própria e não entra no resumo financeiro como receita adicional. Não há processamento de upload PDF por worker.
+- Leituras TASK-004: filtros de fechamento por operador e revisão; sangrias por período/classificação; `GET /api/review-issues`, `/api/dashboard` e `/api/reports/summary` com períodos explícitos e limitações. Schemas Zod validam as respostas de contas, fechamentos, sangrias, revisão e resumo no servidor. Formatos e limitações em `docs/handoffs/TASK-005-API-CONTRACTS.md`.
+- Testes desta etapa: `corepack pnpm test` — 47 passaram; suíte integrada no PostgreSQL DEV de `apps/web/test/finance.test.ts`, `apps/web/test/closure-persistence.test.ts`, `packages/db/test/inbound-dedup.test.ts` e `packages/db/test/integrity.test.ts` — 5 passaram; `corepack pnpm typecheck`, `corepack pnpm --filter @financeiro/db db:validate` e `corepack pnpm build` — passaram. Build e testes integrados executados fora do sandbox por `spawn EPERM` local. Nenhum banco de produção foi acessado.
+- **Migration pendente de aprovação:** `docs/proposals/TASK-005-instruments.schema.prisma` e `.sql` trazem enum, tabela `PayableInstrument` e coluna nullable `PayablePayment.instrumentId`. SQL gerado por diff, sem aplicar e fora de `packages/db/prisma/migrations`. Sem essa aprovação, cheque/boleto continuam representados somente por meio planejado/efetivo e `externalRef`; metadados estruturados não foram implementados.
+- **Inbox:** proposta técnica separada em `docs/proposals/TASK-005-whatsapp-inbox.md`. Nenhuma migration ou webhook implementado. Recuperação após HTTP 200 sem reentrega continua bloqueada até inbox durável e integração com TASK-003.
+- **Pendências para integrar:** revisar/aprovar instrumentos; teste HTTP autenticado com as telas TASK-004; ligar upload privado ao caso de uso de fechamento sem assumir worker nesta tarefa; projetar inbox/worker/contratos TASK-003 antes de ativar webhook. Resumo de dashboard indica cobertura `UNKNOWN` quando não há prova de todos os turnos.
+
 ## Atualização — migration WhatsApp dedup no DEV (05/11/2026)
 
 - Autorizada exclusivamente para PostgreSQL DEV e aplicada via `prisma migrate deploy` ao banco `financeiro` em `127.0.0.1:5432`, contêiner `infra-postgres-1`, volume `infra_postgres_dev`. Pré-verificação: branch correta; somente `20261105000100_init` concluída; tabelas TASK-001 presentes; apenas `20261105000200_whatsapp_inbound_dedup` pendente. Pós-verificação: duas migrations concluídas, Prisma `Database schema is up to date!`, três tabelas novas presentes. Sem reset, db push, DROP, TRUNCATE, acesso a produção, VPS ou webhook.
@@ -36,8 +46,7 @@ TASK-003 define `InboundDedupStore`; a unicidade de `WhatsAppMessage(instanceNam
 
 ## Pendências e riscos
 
-- Criar endpoint privado de upload e fluxo de revisão/publicação de fechamento; `persistClosure` ainda não foi exercitado em teste integrado.
-- Cheque (número, banco, emissão, compensação) e boleto (linha digitável, banco) exigem campos novos; por enquanto os pagamentos registram método e `externalRef`. Propor extensão de schema/contrato antes de implementar esses detalhes.
-- Idempotência persistente de criação de contas não existe no schema; reenvio de `POST /api/payables` pode criar outra conta. O identificador de `POST /api/expenses` previne reenvio do mesmo lançamento manual; comparar descrições não é deduplicação confiável.
+- Criar endpoint privado de upload e fluxo de revisão/publicação de fechamento; `persistClosure` já foi exercitado em teste integrado, mas ainda é apenas caso de uso interno.
+- Metadados estruturados de cheque/boleto aguardam aprovação da proposta Prisma/SQL. O identificador de `POST /api/expenses` previne reenvio do mesmo lançamento manual; comparar descrições não é deduplicação confiável.
 - A autenticação reconsulta usuário ativo e papel, mas revogação imediata de sessão individual e limite de tentativas de login ainda precisam de desenho operacional. A tela de login é funcional, mas as páginas da TASK-004 ainda não consomem as rotas; relatórios e dashboard agregados permanecem pendentes.
 - Antes de conectar frontend: criar sessão por `/api/auth`, usar os endpoints acima, enviar `idempotencyKey` estável por tentativa de pagamento e UUID estável para despesa manual, nunca enviar `organizationId`/`role`, e mostrar erros 401/403/409 sem repetir automaticamente mutações com nova chave.
