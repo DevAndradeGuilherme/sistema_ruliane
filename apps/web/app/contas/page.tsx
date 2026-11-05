@@ -1,0 +1,4 @@
+import type { Metadata } from 'next';
+import { EmptyState, PageHeading, Panel } from '../ui';
+export const metadata: Metadata = { title: 'Contas a pagar' };
+export default function Contas() { return <><PageHeading eyebrow="Compromissos" title="Contas a pagar" description="Consulte vencimentos, parcelas, saldos pendentes e pagamentos confirmados." /><Panel title="Lista de contas" description="Os filtros estarão disponíveis com os dados da API."><div className="filter-bar" aria-label="Filtros previstos"><span>Status: todos</span><span>Período: todos</span><span>Fornecedor: todos</span></div><div className="table-wrap"><table><thead><tr><th>Fornecedor / descrição</th><th>Vencimento</th><th>Valor</th><th>Saldo pendente</th><th>Status</th></tr></thead><tbody><tr><td colSpan={5}><EmptyState title="Nenhuma conta disponível" description="A listagem será exibida quando os dados forem conectados." /></td></tr></tbody></table></div></Panel></>; }

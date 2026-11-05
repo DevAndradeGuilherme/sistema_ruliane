@@ -1,0 +1,10 @@
+export * from './types.ts';
+export { EvolutionClient } from './client.ts';
+export type { EvolutionClientConfig } from './client.ts';
+export { EvolutionWhatsAppSender } from './sender.ts';
+export { checkWebhookSecret, MIN_SECRET_LENGTH } from './webhook-auth.ts';
+export { canonicalJid, normalizeMessagesUpsert } from './normalize.ts';
+export { InMemoryDedupStore } from './dedup.ts';
+export type { DedupKey, InboundDedupStore } from './dedup.ts';
+export { allowlistFromEnv, createWebhookProcessor, maskJid } from './webhook.ts';
+export type { WebhookLogger, WebhookOutcome, WebhookProcessorConfig } from './webhook.ts';

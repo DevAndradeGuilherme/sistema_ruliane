@@ -1,0 +1,42 @@
+FECHAMENTO DE CAIXA
+Data do relatório / fechamento: 30/10/2026 15:11
+Caixa: 2000908    Terminal: 2
+Operador: 67 - OPERADOR TESTE
+Abertura: 30/10/2026 07:04
+Situação: Fechado
+Valor do fechamento (VF): R$ 7.386,58
+
+RESUMO
+Dinheiro R$ 1.135,35
+Crédito R$ 3.362,04
+Vencimento R$ 210,50
+Débito R$ 2.003,71
+Transf Pix R$ 674,98
+
+DETALHAMENTO
+ENTRADAS EM DINHEIRO
+Vendas em dinheiro (A) R$ 1.349,85
+
+SAÍDAS / SANGRIAS
+Sangria banana loja R$ 8,00
+Sangria devoluçao ao cliente R$ 4,50
+Sangria maquina de urso nao fu R$ 2,00
+Sangria vale lacy R$ 200,00
+Total de sangrias (B) R$ 214,50
+Subtotal dinheiro (A-B) (C) R$ 1.135,35
+
+OUTRAS ENTRADAS
+Vendas Vencimento R$ 210,59
+Vendas C. Credito R$ 3.042,50
+Vendas C Debito R$ 2.117,71
+Vendas Boleto R$ 319,54
+Vendas Transf R$ 674,98
+Outras entradas (D) R$ 6.365,32
+
+Total do caixa apurado (C+D-E) R$ 7.500,67
+Diferença (VF - TOTAL) -R$ 114,09
+
+TRANSAÇÕES SMARTTEF
+Crédito SmartTEF R$ 400,00
+Débito SmartTEF R$ 224,73
+Total SmartTEF R$ 624,73
