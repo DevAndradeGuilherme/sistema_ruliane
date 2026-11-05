@@ -9,6 +9,7 @@
     "incremental": true,
     "isolatedModules": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./*"] }
   },

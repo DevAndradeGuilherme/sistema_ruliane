@@ -10,17 +10,21 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@financeiro/contracts": "workspace:*",
+    "@financeiro/db": "workspace:*",
+    "@financeiro/domain": "workspace:*",
+    "argon2": "^0.45.2",
     "next": "^16.0.0",
+    "next-auth": "5.0.0-beta.32",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@financeiro/contracts": "workspace:*",
-    "@financeiro/domain": "workspace:*"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "postcss": "^8.0.0"
+    "postcss": "^8.0.0",
+    "tailwindcss": "^4.0.0"
   }
 }
