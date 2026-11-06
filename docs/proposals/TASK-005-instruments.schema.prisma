@@ -1,0 +1,516 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  FINANCEIRO
+  PROPRIETARIA
+}
+enum SourceChannel {
+  WEB
+  WHATSAPP
+  IMPORTACAO
+}
+enum PayableStatus {
+  ABERTA
+  PARCIALMENTE_PAGA
+  PAGA
+  CANCELADA
+}
+enum PaymentMethod {
+  A_DEFINIR
+  BOLETO
+  CHEQUE
+  PIX
+  TRANSFERENCIA
+  DINHEIRO
+  OUTRO
+}
+enum PayableInstrumentKind {
+  CHEQUE
+  BOLETO
+}
+enum DocumentKind {
+  FECHAMENTO_CAIXA
+  COMPROVANTE
+  BOLETO
+  CHEQUE
+  OUTRO
+}
+enum DocumentExtractionStatus {
+  PENDENTE
+  PROCESSANDO
+  PROCESSADO
+  PENDENTE_REVISAO
+  ERRO
+}
+enum CashClosureReviewStatus {
+  PROCESSADO
+  PENDENTE_REVISAO
+  REJEITADO
+}
+enum ClosureLineSection {
+  SUMMARY
+  CASH_ENTRIES
+  CASH_EXITS
+  OTHER_ENTRIES
+  SMARTTEF
+}
+enum CashMethod {
+  DINHEIRO
+  CREDITO
+  DEBITO
+  VENCIMENTO
+  BOLETO
+  TRANSF_PIX
+  VOUCHER
+  OUTRO
+}
+enum CashMovementKind {
+  SANGRIA
+  SUPRIMENTO
+  OUTRO
+}
+enum CashClassification {
+  DESPESA_OPERACIONAL
+  DEVOLUCAO_CLIENTE
+  ADIANTAMENTO
+  RETIRADA_INTERNA
+  OUTROS
+  NAO_CLASSIFICADA
+}
+enum ExpenseOrigin {
+  SANGRIA
+  PAGAMENTO_CONTA
+  MANUAL
+}
+enum WhatsAppDirection {
+  INBOUND
+  OUTBOUND
+}
+enum NotificationStatus {
+  PENDENTE
+  ENVIADA
+  ENTREGUE
+  FALHOU
+}
+enum ReviewSeverity {
+  BAIXA
+  MEDIA
+  ALTA
+}
+enum InboundClaimState {
+  PROCESSING
+  DONE
+}
+enum InboundFinancialEntity {
+  PAYABLE
+  PAYMENT
+  EXPENSE
+}
+
+model Organization {
+  id            String                  @id @default(uuid()) @db.Uuid
+  name          String
+  timezone      String                  @default("America/Sao_Paulo")
+  currency      String                  @default("BRL")
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+  users         User[]
+  suppliers     Supplier[]
+  installmentGroups InstallmentGroup[]
+  reviewIssues  ReviewIssue[]
+  categories    ExpenseCategory[]
+  payables      Payable[]
+  expenses      Expense[]
+  cashClosures  CashClosure[]
+  documents     Document[]
+  messages      WhatsAppMessage[]
+  notifications NotificationDelivery[]
+  audits        AuditLog[]
+  whatsappInstances WhatsAppInstance[]
+  inboundClaims InboundMessageClaim[]
+  inboundEffects InboundFinancialEffect[]
+  payableInstruments PayableInstrument[]
+}
+
+/** Uma instância Evolution pertence a uma única organização. Nunca resolver escopo do payload. */
+model WhatsAppInstance {
+  name           String   @id @db.VarChar(120)
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  active         Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+  claims         InboundMessageClaim[]
+  @@unique([name, organizationId])
+  @@index([organizationId, active])
+}
+
+/** Claim atômico; sem texto, JID ou payload da mensagem. */
+model InboundMessageClaim {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @db.Uuid
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  instanceName      String   @db.VarChar(120)
+  instance          WhatsAppInstance @relation(fields: [instanceName, organizationId], references: [name, organizationId], onDelete: Restrict)
+  providerMessageId String   @db.VarChar(255)
+  receivedAt        DateTime @db.Timestamptz(6)
+  state             InboundClaimState @default(PROCESSING)
+  leaseOwner        String   @db.Uuid
+  claimedAt         DateTime @default(now()) @db.Timestamptz(6)
+  leaseUntil        DateTime @db.Timestamptz(6)
+  attempts          Int      @default(1)
+  completedAt       DateTime? @db.Timestamptz(6)
+  expiresAt         DateTime? @db.Timestamptz(6)
+  effects           InboundFinancialEffect[]
+  @@unique([id, organizationId])
+  @@unique([organizationId, instanceName, providerMessageId])
+  @@index([state, leaseUntil])
+  @@index([state, expiresAt])
+}
+
+/** Receipt gravado na mesma transação da mutação financeira. */
+model InboundFinancialEffect {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  claimId        String   @db.Uuid
+  claim          InboundMessageClaim @relation(fields: [claimId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  effectKey      String   @db.VarChar(200)
+  entityType     InboundFinancialEntity
+  entityId       String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([organizationId, effectKey])
+  @@index([claimId, organizationId])
+  @@index([organizationId, entityType, entityId])
+}
+
+model User {
+  id               String                 @id @default(uuid()) @db.Uuid
+  organizationId   String                 @db.Uuid
+  organization     Organization           @relation(fields: [organizationId], references: [id])
+  name             String
+  role             UserRole
+  whatsappJid      String?
+  loginEmail       String?                @unique
+  passwordHash     String?
+  active           Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  payablesCreated  Payable[]              @relation("PayableCreatedBy")
+  paymentsRecorded PayablePayment[]       @relation("PaymentRecordedBy")
+  whatsappMessages WhatsAppMessage[]
+  notifications    NotificationDelivery[]
+  auditActions     AuditLog[]             @relation("AuditActor")
+  @@unique([id, organizationId])
+  @@unique([organizationId, whatsappJid])
+  @@index([organizationId, role])
+}
+
+model Supplier {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  name           String
+  taxId          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  payables       Payable[]
+  expenses       Expense[]
+  @@unique([id, organizationId])
+  @@index([organizationId, name])
+}
+
+model ExpenseCategory {
+  id             String          @id @default(uuid()) @db.Uuid
+  organizationId String          @db.Uuid
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  name           String
+  active         Boolean         @default(true)
+  payables       Payable[]
+  expenses       Expense[]
+  @@unique([id, organizationId])
+  @@unique([organizationId, name])
+}
+
+model InstallmentGroup {
+  id           String     @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization Organization @relation(fields: [organizationId], references: [id])
+  description  String
+  totalCount   Int
+  payables     Payable[]
+  createdAt    DateTime   @default(now())
+  @@unique([id, organizationId])
+}
+
+model Payable {
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @db.Uuid
+  organization       Organization     @relation(fields: [organizationId], references: [id])
+  supplierId         String?          @db.Uuid
+  supplier           Supplier?        @relation(fields: [supplierId, organizationId], references: [id, organizationId])
+  categoryId         String?          @db.Uuid
+  category           ExpenseCategory? @relation(fields: [categoryId, organizationId], references: [id, organizationId])
+  installmentGroupId String?          @db.Uuid
+  installmentGroup   InstallmentGroup? @relation(fields: [installmentGroupId, organizationId], references: [id, organizationId])
+  installmentNumber  Int?
+  description        String
+  amountExpected     Decimal          @db.Decimal(14, 2)
+  dueDate            DateTime         @db.Date
+  status             PayableStatus    @default(ABERTA)
+  plannedMethod      PaymentMethod    @default(A_DEFINIR)
+  notes              String?
+  sourceChannel      SourceChannel    @default(WEB)
+  createdById        String?          @db.Uuid
+  createdBy          User?            @relation("PayableCreatedBy", fields: [createdById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  canceledAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  payments           PayablePayment[]
+  instruments        PayableInstrument[]
+  @@unique([id, organizationId])
+  @@index([organizationId, dueDate, status])
+  @@index([organizationId, supplierId])
+}
+
+model PayablePayment {
+  id              String         @id @default(uuid()) @db.Uuid
+  organizationId  String         @db.Uuid
+  payableId       String         @db.Uuid
+  payable         Payable        @relation(fields: [payableId, organizationId], references: [id, organizationId])
+  amount          Decimal        @db.Decimal(14, 2)
+  paidAt          DateTime
+  method          PaymentMethod
+  externalRef     String?
+  idempotencyKey  String?
+  recordedById    String?        @db.Uuid
+  recordedBy      User?          @relation("PaymentRecordedBy", fields: [recordedById, organizationId], references: [id, organizationId], onDelete: Restrict)
+  cashMovementId  String?        @unique @db.Uuid
+  cashMovement    CashMovement?  @relation("MovementPayment", fields: [cashMovementId, organizationId], references: [id, organizationId])
+  voidedAt        DateTime?
+  createdAt       DateTime       @default(now())
+  expense         Expense?       @relation("PaymentExpense")
+  instrumentId    String?        @db.Uuid
+  instrument      PayableInstrument? @relation(fields: [instrumentId, payableId, organizationId], references: [id, payableId, organizationId], onDelete: Restrict)
+  @@unique([cashMovementId, organizationId])
+  @@unique([id, organizationId])
+  @@unique([organizationId, idempotencyKey])
+  @@index([payableId, paidAt])
+  @@index([organizationId, paidAt])
+}
+
+/** Instrumento planejado; vencimento da conta e liquidação registrada permanecem em Payable/PayablePayment. */
+model PayableInstrument {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @db.Uuid
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  payableId             String   @db.Uuid
+  payable               Payable  @relation(fields: [payableId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  kind                  PayableInstrumentKind
+  bankName              String?  @db.VarChar(120)
+  accountReference      String?  @db.VarChar(120)
+  beneficiaryName       String?  @db.VarChar(200)
+  chequeNumber          String?  @db.VarChar(80)
+  issuedOn              DateTime? @db.Date
+  expectedClearingOn    DateTime? @db.Date
+  clearedAt             DateTime? @db.Timestamptz(6)
+  boletoLine            String?  @db.VarChar(100)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+  payments              PayablePayment[]
+  @@unique([id, payableId, organizationId])
+  @@index([organizationId, payableId, kind])
+}
+
+model Document {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @db.Uuid
+  organization   Organization             @relation(fields: [organizationId], references: [id])
+  kind           DocumentKind
+  filename       String
+  mimeType       String
+  sha256         String
+  storageKey     String                   @unique
+  status         DocumentExtractionStatus @default(PENDENTE)
+  uploadedAt     DateTime                 @default(now())
+  closure        CashClosure?
+  importJobs     ImportJob[]
+  @@unique([organizationId, sha256])
+  @@unique([id, organizationId])
+}
+
+model ImportJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  documentId    String    @db.Uuid
+  document      Document  @relation(fields: [documentId], references: [id])
+  state         String
+  attempts      Int       @default(0)
+  parserVersion String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  payload       Json?
+  errorCode     String?
+  createdAt     DateTime  @default(now())
+  @@index([documentId, createdAt])
+}
+
+model CashClosure {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  organizationId             String                  @db.Uuid
+  organization               Organization            @relation(fields: [organizationId], references: [id])
+  documentId                 String                  @unique @db.Uuid
+  document                   Document                @relation(fields: [documentId, organizationId], references: [id, organizationId])
+  closureNumber              String
+  terminal                   String
+  businessDate               DateTime                @db.Date
+  operatorCode               String?
+  operatorName               String?
+  openedAt                   DateTime?
+  closedAt                   DateTime
+  statusRaw                  String?
+  reportedCloseTotal         Decimal?                @db.Decimal(14, 2)
+  calculatedReportTotal      Decimal?                @db.Decimal(14, 2)
+  reportedVariance           Decimal?                @db.Decimal(14, 2)
+  calculatedVariance         Decimal?                @db.Decimal(14, 2)
+  reportedCashNet            Decimal?                @db.Decimal(14, 2)
+  rawReportText              String?
+  reviewStatus               CashClosureReviewStatus @default(PENDENTE_REVISAO)
+  createdAt                  DateTime                @default(now())
+  updatedAt                  DateTime                @updatedAt
+  lines                      CashClosureLine[]
+  movements                  CashMovement[]
+  issues                     ReviewIssue[]
+  @@unique([documentId, organizationId])
+  @@unique([organizationId, closureNumber, terminal, businessDate])
+  @@unique([id, organizationId])
+  @@index([organizationId, closedAt])
+}
+
+model CashClosureLine {
+  id               String             @id @default(uuid()) @db.Uuid
+  closureId        String             @db.Uuid
+  closure          CashClosure        @relation(fields: [closureId], references: [id])
+  section          ClosureLineSection
+  ordinal          Int
+  labelRaw         String
+  methodNormalized CashMethod?
+  amount           Decimal            @db.Decimal(14, 2)
+  @@unique([closureId, section, ordinal])
+}
+
+model CashMovement {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid
+  closureId       String             @db.Uuid
+  closure         CashClosure        @relation(fields: [closureId, organizationId], references: [id, organizationId])
+  kind            CashMovementKind
+  sourceOrdinal   Int
+  descriptionRaw  String
+  amount          Decimal            @db.Decimal(14, 2)
+  classification  CashClassification @default(NAO_CLASSIFICADA)
+  reviewedAt      DateTime?
+  createdAt       DateTime           @default(now())
+  payment         PayablePayment?    @relation("MovementPayment")
+  expense         Expense?           @relation("MovementExpense")
+  @@unique([id, organizationId])
+  @@unique([closureId, kind, sourceOrdinal])
+  @@index([closureId, classification])
+}
+
+model Expense {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  supplierId     String?          @db.Uuid
+  supplier       Supplier?        @relation(fields: [supplierId, organizationId], references: [id, organizationId])
+  categoryId     String?          @db.Uuid
+  category       ExpenseCategory? @relation(fields: [categoryId, organizationId], references: [id, organizationId])
+  description    String
+  amount         Decimal          @db.Decimal(14, 2)
+  occurredAt     DateTime
+  origin         ExpenseOrigin
+  paymentId      String?          @unique @db.Uuid
+  payment        PayablePayment?  @relation("PaymentExpense", fields: [paymentId, organizationId], references: [id, organizationId])
+  cashMovementId String?          @unique @db.Uuid
+  cashMovement   CashMovement?    @relation("MovementExpense", fields: [cashMovementId, organizationId], references: [id, organizationId])
+  voidedAt       DateTime?
+  createdAt      DateTime         @default(now())
+  @@unique([paymentId, organizationId])
+  @@unique([cashMovementId, organizationId])
+  @@index([organizationId, occurredAt])
+}
+
+model ReviewIssue {
+  id         String         @id @default(uuid()) @db.Uuid
+  organizationId String @db.Uuid
+  organization Organization @relation(fields: [organizationId], references: [id])
+  recordType String?
+  recordId String?
+  closureId  String?        @db.Uuid
+  closure    CashClosure?   @relation(fields: [closureId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  code       String
+  severity   ReviewSeverity
+  expected   String?
+  observed   String?
+  resolvedAt DateTime?
+  note       String?
+  createdAt  DateTime       @default(now())
+  @@index([closureId, code])
+}
+
+model WhatsAppMessage {
+  id                String            @id @default(uuid()) @db.Uuid
+  organizationId    String            @db.Uuid
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+  userId            String?           @db.Uuid
+  user              User?             @relation(fields: [userId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  instanceName      String
+  providerMessageId String
+  direction         WhatsAppDirection
+  senderJid         String
+  deliveryStatus    String?
+  receivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  @@unique([instanceName, providerMessageId])
+  @@index([organizationId, receivedAt])
+}
+
+model NotificationDelivery {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String             @db.Uuid
+  organization    Organization       @relation(fields: [organizationId], references: [id])
+  recipientUserId String             @db.Uuid
+  recipient       User               @relation(fields: [recipientUserId, organizationId], references: [id, organizationId])
+  notificationKey String             @unique
+  dueDate         DateTime           @db.Date
+  status          NotificationStatus @default(PENDENTE)
+  attempts        Int                @default(0)
+  sentAt          DateTime?
+  createdAt       DateTime           @default(now())
+  @@index([organizationId, dueDate])
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  actorUserId    String?      @db.Uuid
+  actor          User?        @relation("AuditActor", fields: [actorUserId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  action         String
+  entityName     String
+  entityId       String
+  before         Json?
+  after          Json?
+  channel        SourceChannel
+  createdAt      DateTime     @default(now())
+  @@index([organizationId, createdAt])
+}
